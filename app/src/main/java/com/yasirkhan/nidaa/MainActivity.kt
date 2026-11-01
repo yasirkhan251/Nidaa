@@ -156,12 +156,8 @@ private fun NidaaApp() {
                 "Salah" -> SalahScreen(Modifier.padding(padding), prayer, status, loading, ::refresh, jamaat) {
                     jamaat = it; prefs.edit().putString("jamaat", it).apply()
                 }
-                "Reminders" -> EditorScreen(Modifier.padding(padding), "Reminders", "Keep important moments close.", reminders) {
-                    reminders = it; prefs.edit().putString("reminders", it).apply()
-                }
-                "Planner" -> EditorScreen(Modifier.padding(padding), "Your planner", "Tasks, deadlines and daily intentions.", tasks) {
-                    tasks = it; prefs.edit().putString("tasks", it).apply()
-                }
+                "Reminders" -> RemindersScreen()
+                "Planner" -> PlannerScreen()
                 else -> SettingsScreen(Modifier.padding(padding), method, school, { method = it; prefs.edit().putInt("method", it).apply(); refresh() },
                     { school = it; prefs.edit().putInt("school", it).apply(); refresh() }, notes) {
                     notes = it; prefs.edit().putString("notes", it).apply()
