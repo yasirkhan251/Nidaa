@@ -7,9 +7,11 @@ import android.media.RingtoneManager
 import android.os.Build
 import android.provider.Settings
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,12 +34,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.IntentCompat
 import androidx.core.content.edit
+import com.yasirkhan.nidaa.data.format12Hour
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -66,7 +71,7 @@ data class ScheduleItem(
     val soundUri: String? = null
 )
 
-private fun loadItems(context: Context, key: String): List<ScheduleItem> {
+fun loadScheduleItems(context: Context, key: String): List<ScheduleItem> {
     val raw = context.getSharedPreferences("nidaa_schedule", Context.MODE_PRIVATE).getString(key, "[]") ?: "[]"
     return try {
         val array = JSONArray(raw)
@@ -80,7 +85,7 @@ private fun loadItems(context: Context, key: String): List<ScheduleItem> {
     } catch (_: Exception) { emptyList() }
 }
 
-private fun saveItems(context: Context, key: String, items: List<ScheduleItem>) {
+fun saveScheduleItems(context: Context, key: String, items: List<ScheduleItem>) {
     val array = JSONArray()
     items.forEach { item ->
         val days = JSONArray()
@@ -91,6 +96,9 @@ private fun saveItems(context: Context, key: String, items: List<ScheduleItem>) 
     }
     context.getSharedPreferences("nidaa_schedule", Context.MODE_PRIVATE).edit { putString(key, array.toString()) }
 }
+
+private fun loadItems(context: Context, key: String) = loadScheduleItems(context, key)
+private fun saveItems(context: Context, key: String, items: List<ScheduleItem>) = saveScheduleItems(context, key, items)
 
 private fun alarmId(item: ScheduleItem, suffix: Int = 0) = (item.id * 31 + suffix) and 0x7fffffff
 
@@ -125,6 +133,65 @@ fun RemindersScreen() {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${items.size} reminders", Modifier.weight(1f), color = ScheduleMuted)
             Button(onClick = { showAdd = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text("New reminder") }
+        }
+
+        // Quick Office & Routine Templates
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, Color(0xFFEFF2ED)),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("💼", fontSize = 16.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Office & Daily Routines", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                }
+                Text("Tap to add ready-made weekday alarms for office and tasks.", color = ScheduleMuted, fontSize = 11.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val presets = listOf(
+                        Triple("Get Ready for Office", "07:30", "Morning preparation & breakfast"),
+                        Triple("Leave for Work", "08:15", "Commute & pack laptop/keys"),
+                        Triple("Office Dhuhr Break", "13:15", "Step away for Dhuhr & lunch"),
+                        Triple("Afternoon Asr Focus", "16:30", "Quick tea & Asr prayer"),
+                        Triple("Wrap Up & Maghrib", "18:00", "Review tasks & head home")
+                    )
+                    presets.forEach { (pTitle, pTime, pDetail) ->
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF7F9F6),
+                            border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                            modifier = Modifier.clickable {
+                                val newId = (System.currentTimeMillis() % 100000).toInt()
+                                val newItem = ScheduleItem(
+                                    id = newId,
+                                    title = pTitle,
+                                    detail = pDetail,
+                                    date = LocalDate.now().toString(),
+                                    time = pTime,
+                                    repeatDays = setOf(1, 2, 3, 4, 5),
+                                    leadMinutes = 0,
+                                    completed = false,
+                                    soundUri = null
+                                )
+                                items = items + newItem
+                                saveScheduleItems(context, "reminders", items)
+                                scheduleItem(context, newItem, false)
+                            }
+                        ) {
+                            Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Text(pTitle, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = ScheduleForest)
+                                Text("${format12Hour(pTime)} • + Add", fontSize = 10.sp, color = ScheduleGreen, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
         }
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             OutlinedButton(onClick = { notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Text("Allow notifications") }
@@ -211,17 +278,45 @@ fun PlannerScreen() {
 
 @Composable
 private fun ScheduleHeader(title: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth().background(ScheduleForest).padding(22.dp)) {
-        Text("N I D A A", color = Color(0xFFB9DDCE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(title, color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(subtitle, color = Color(0xFFD7E8DF), style = MaterialTheme.typography.bodyMedium)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF03221B), Color(0xFF07382D), Color(0xFF0B4E3F))
+                )
+            )
+            .padding(horizontal = 22.dp, vertical = 24.dp)
+    ) {
+        Column {
+            Surface(
+                color = Color(0x22FFFFFF),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Text(
+                    "✦ N I D A A  •  نِـــدَاء",
+                    color = Color(0xFFC7EBD9),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(title, color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, color = Color(0xFFD3E7DC), style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 
 @Composable
 private fun ScheduleEmpty(message: String) {
-    Surface(Modifier.fillMaxWidth().padding(16.dp), color = Color.White, shape = RoundedCornerShape(18.dp)) {
+    Surface(
+        Modifier.fillMaxWidth().padding(16.dp),
+        color = Color.White,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color(0xFFEFF2ED))
+    ) {
         Text(message, Modifier.padding(20.dp), color = ScheduleMuted)
     }
 }
@@ -229,8 +324,12 @@ private fun ScheduleEmpty(message: String) {
 @Composable
 private fun ScheduleCard(item: ScheduleItem, onEdit: () -> Unit, onDelete: () -> Unit, onToggle: (Boolean) -> Unit) {
     var enabled by remember(item.id) { mutableStateOf(true) }
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color(0xFFEFF2ED))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -256,8 +355,12 @@ private fun PlannerTaskCard(item: ScheduleItem, onComplete: () -> Unit, onDelete
         remaining < 3_600_000 -> "Starts in ${remaining / 60_000} min"
         else -> "Starts in ${remaining / 3_600_000} hr ${(remaining % 3_600_000) / 60_000} min"
     }
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp)) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color(0xFFEFF2ED))
+    ) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onComplete) { Icon(Icons.Default.CheckCircle, "Complete", tint = if (item.completed) ScheduleGreen else ScheduleMuted) }
             Column(Modifier.weight(1f)) {
                 Text(item.title, fontWeight = FontWeight.Bold)

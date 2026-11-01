@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.yasirkhan.nidaa.data.PrayerSoundMode
 import com.yasirkhan.nidaa.data.PrayerTimes
 import com.yasirkhan.nidaa.data.SalahTracker
 import com.yasirkhan.nidaa.data.format12Hour
@@ -24,7 +25,9 @@ object AlarmScheduler {
         soundUri: String?,
         isFajr: Boolean = false,
         prayerName: String? = null,
-        jamaatInfo: String? = null
+        jamaatInfo: String? = null,
+        soundMode: String? = null,
+        soundTone: String? = null,
     ) {
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val localTime = java.time.Instant.ofEpochMilli(triggerAt).atZone(ZoneId.systemDefault())
@@ -39,6 +42,8 @@ object AlarmScheduler {
             putExtra("isFajr", isFajr)
             putExtra("prayerName", prayerName)
             putExtra("jamaatInfo", jamaatInfo)
+            putExtra("soundMode", soundMode)
+            putExtra("soundTone", soundTone)
         }
         val pending = PendingIntent.getBroadcast(
             context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -59,7 +64,7 @@ object AlarmScheduler {
     }
 
     /**
-     * Schedules alarms for the 5 daily prayers and their mosque Jamaat times.
+     * Schedules alarms for the 5 daily prayers and their mosque Jamaat times using custom sound configurations.
      */
     fun scheduleAllPrayers(context: Context, prayer: PrayerTimes, jamaatLines: List<String>) {
         val now = LocalDateTime.now()
@@ -84,8 +89,10 @@ object AlarmScheduler {
                     "Jamaat: ${format12Hour(jTime24)}" + (if (durationText != null) " ($durationText)" else "")
                 } else null
 
+                val audioConfig = SalahTracker.getPrayerAudioConfig(context, name)
+
                 // Schedule Adhan alarm (ID: 9000 + index)
-                if (adhanDt.isAfter(now)) {
+                if (adhanDt.isAfter(now) && audioConfig.soundMode != PrayerSoundMode.OFF) {
                     val millis = adhanDt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     schedule(
                         context = context,
@@ -97,12 +104,14 @@ object AlarmScheduler {
                         soundUri = null,
                         isFajr = isFajr,
                         prayerName = name,
-                        jamaatInfo = jamaatNotice
+                        jamaatInfo = jamaatNotice,
+                        soundMode = audioConfig.soundMode.name,
+                        soundTone = audioConfig.soundTone,
                     )
                 }
 
                 // Schedule Jamaat alarm (ID: 9100 + index)
-                if (jTime24 != null) {
+                if (jTime24 != null && audioConfig.soundMode != PrayerSoundMode.OFF) {
                     val jLt = LocalTime.parse(jTime24.take(5))
                     val jDt = today.atTime(jLt)
                     if (jDt.isAfter(now)) {
@@ -117,7 +126,9 @@ object AlarmScheduler {
                             soundUri = null,
                             isFajr = isFajr,
                             prayerName = name,
-                            jamaatInfo = "Jamaat in progress"
+                            jamaatInfo = "Jamaat in progress",
+                            soundMode = audioConfig.soundMode.name,
+                            soundTone = audioConfig.soundTone,
                         )
                     }
                 }
