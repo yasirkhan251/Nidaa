@@ -27,6 +27,8 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.yasirkhan.nidaa.data.PrayerApi
 import com.yasirkhan.nidaa.data.PrayerTimes
+import com.yasirkhan.nidaa.schedule.PlannerScreen
+import com.yasirkhan.nidaa.schedule.RemindersScreen
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.time.LocalTime
