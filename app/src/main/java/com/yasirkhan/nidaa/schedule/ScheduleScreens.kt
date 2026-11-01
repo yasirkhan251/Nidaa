@@ -2,6 +2,8 @@ package com.yasirkhan.nidaa.schedule
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.media.RingtoneManager
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,10 +18,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,7 +57,8 @@ data class ScheduleItem(
     val time: String,
     val repeatDays: Set<Int>,
     val leadMinutes: Int,
-    val completed: Boolean = false
+    val completed: Boolean = false,
+    val soundUri: String? = null
 )
 
 private fun loadItems(context: Context, key: String): List<ScheduleItem> {
@@ -63,7 +70,7 @@ private fun loadItems(context: Context, key: String): List<ScheduleItem> {
             val days = o.optJSONArray("days") ?: JSONArray()
             ScheduleItem(o.getInt("id"), o.getString("title"), o.optString("detail"), o.optString("date"),
                 o.getString("time"), (0 until days.length()).map { days.getInt(it) }.toSet(),
-                o.optInt("lead", 0), o.optBoolean("completed", false))
+                o.optInt("lead", 0), o.optBoolean("completed", false), o.optString("soundUri").takeIf { it.isNotBlank() })
         }
     } catch (_: Exception) { emptyList() }
 }
@@ -75,7 +82,7 @@ private fun saveItems(context: Context, key: String, items: List<ScheduleItem>) 
         item.repeatDays.sorted().forEach { day -> days.put(day) }
         array.put(JSONObject().put("id", item.id).put("title", item.title).put("detail", item.detail)
             .put("date", item.date).put("time", item.time).put("days", days)
-            .put("lead", item.leadMinutes).put("completed", item.completed))
+            .put("lead", item.leadMinutes).put("completed", item.completed).put("soundUri", item.soundUri ?: ""))
     }
     context.getSharedPreferences("nidaa_schedule", Context.MODE_PRIVATE).edit().putString(key, array.toString()).apply()
 }
@@ -97,7 +104,7 @@ private fun scheduleItem(context: Context, item: ScheduleItem, planner: Boolean)
         val millis = first.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         AlarmScheduler.schedule(context, alarmId(item, if (planner) 1 else 0), item.title,
             if (planner) "Upcoming task: ${item.detail.ifBlank { item.title }}" else item.detail.ifBlank { "Your reminder is due." },
-            millis, item.repeatDays)
+            millis, item.repeatDays, item.soundUri)
     }
 }
 
@@ -106,6 +113,7 @@ fun RemindersScreen() {
     val context = LocalContext.current
     var items by remember { mutableStateOf(loadItems(context, "reminders")) }
     var showAdd by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<ScheduleItem?>(null) }
     Column(Modifier.fillMaxSize()) {
         ScheduleHeader("Reminders", "One-time alarms and weekly repeats")
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -115,7 +123,7 @@ fun RemindersScreen() {
         if (items.isEmpty()) ScheduleEmpty("No reminders yet. Create one and choose when it should ring.")
         else LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(items, key = { it.id }) { item ->
-                ScheduleCard(item, onDelete = {
+                ScheduleCard(item, onEdit = { editing = item }, onDelete = {
                     AlarmScheduler.cancel(context, alarmId(item))
                     items = items.filterNot { it.id == item.id }; saveItems(context, "reminders", items)
                 }, onToggle = { enabled ->
@@ -124,8 +132,10 @@ fun RemindersScreen() {
             }
         }
     }
-    if (showAdd) ReminderDialog(onDismiss = { showAdd = false }, onSave = { item ->
-        items = items + item; saveItems(context, "reminders", items); scheduleItem(context, item, false); showAdd = false
+    if (showAdd || editing != null) ReminderDialog(initial = editing, onDismiss = { showAdd = false; editing = null }, onSave = { item ->
+        editing?.let { AlarmScheduler.cancel(context, alarmId(it)) }
+        items = if (editing == null) items + item else items.map { if (it.id == editing!!.id) item else it }
+        saveItems(context, "reminders", items); scheduleItem(context, item, false); showAdd = false; editing = null
     })
 }
 
@@ -202,7 +212,7 @@ private fun ScheduleEmpty(message: String) {
 }
 
 @Composable
-private fun ScheduleCard(item: ScheduleItem, onDelete: () -> Unit, onToggle: (Boolean) -> Unit) {
+private fun ScheduleCard(item: ScheduleItem, onEdit: () -> Unit, onDelete: () -> Unit, onToggle: (Boolean) -> Unit) {
     var enabled by remember(item.id) { mutableStateOf(true) }
     Surface(color = Color.White, shape = RoundedCornerShape(18.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -212,6 +222,7 @@ private fun ScheduleCard(item: ScheduleItem, onDelete: () -> Unit, onToggle: (Bo
                     Text(LocalTime.parse(item.time).format(displayTime), color = ScheduleGreen, style = MaterialTheme.typography.titleLarge)
                 }
                 Switch(checked = enabled, onCheckedChange = { enabled = it; onToggle(it) })
+                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit", tint = ScheduleGreen) }
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete", tint = ScheduleMuted) }
             }
             Text(if (item.repeatDays.isEmpty()) "One time · ${LocalDate.parse(item.date).format(displayDate)}" else "Repeats · " + ScheduleDays.filterIndexed { index, _ -> index + 1 in item.repeatDays }.joinToString(", "), color = ScheduleMuted, style = MaterialTheme.typography.bodySmall)
@@ -244,25 +255,31 @@ private fun PlannerTaskCard(item: ScheduleItem, onComplete: () -> Unit, onDelete
 }
 
 @Composable
-private fun ReminderDialog(onDismiss: () -> Unit, onSave: (ScheduleItem) -> Unit) {
-    ScheduleEditorDialog("New reminder", LocalDate.now(), false, onDismiss, onSave)
+private fun ReminderDialog(initial: ScheduleItem?, onDismiss: () -> Unit, onSave: (ScheduleItem) -> Unit) {
+    ScheduleEditorDialog(if (initial == null) "New reminder" else "Edit reminder", initial?.date?.let(LocalDate::parse) ?: LocalDate.now(), false, initial, onDismiss, onSave)
 }
 
 @Composable
 private fun PlannerDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (ScheduleItem) -> Unit) {
-    ScheduleEditorDialog("Add planner task", initialDate, true, onDismiss, onSave)
+    ScheduleEditorDialog("Add planner task", initialDate, true, null, onDismiss, onSave)
 }
 
 @Composable
-private fun ScheduleEditorDialog(title: String, initialDate: LocalDate, planner: Boolean, onDismiss: () -> Unit, onSave: (ScheduleItem) -> Unit) {
+private fun ScheduleEditorDialog(title: String, initialDate: LocalDate, planner: Boolean, initial: ScheduleItem?, onDismiss: () -> Unit, onSave: (ScheduleItem) -> Unit) {
     val context = LocalContext.current
-    var name by remember { mutableStateOf("") }
-    var detail by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(initialDate) }
-    var time by remember { mutableStateOf(LocalTime.of(9, 0)) }
-    var weekly by remember { mutableStateOf(false) }
-    var days by remember { mutableStateOf(setOf<Int>()) }
-    var lead by remember { mutableIntStateOf(15) }
+    var name by remember { mutableStateOf(initial?.title ?: "") }
+    var detail by remember { mutableStateOf(initial?.detail ?: "") }
+    var date by remember { mutableStateOf(initial?.date?.let(LocalDate::parse) ?: initialDate) }
+    var time by remember { mutableStateOf(initial?.time?.let(LocalTime::parse) ?: LocalTime.of(9, 0)) }
+    var weekly by remember { mutableStateOf(initial?.repeatDays?.isNotEmpty() == true) }
+    var days by remember { mutableStateOf(initial?.repeatDays ?: emptySet()) }
+    var lead by remember { mutableIntStateOf(initial?.leadMinutes ?: 15) }
+    var soundUri by remember { mutableStateOf(initial?.soundUri) }
+    val ringtonePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            soundUri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)?.toString()
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -326,6 +343,18 @@ private fun ScheduleEditorDialog(title: String, initialDate: LocalDate, planner:
                             }
                         }
                     } else {
+                        OutlinedButton(onClick = {
+                            val picker = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM or RingtoneManager.TYPE_NOTIFICATION)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Choose reminder sound")
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, soundUri?.let(android.net.Uri::parse))
+                            }
+                            ringtonePicker.launch(picker)
+                        }, modifier = Modifier.fillMaxWidth(), shape = CircleShape) {
+                            Icon(Icons.Default.MusicNote, null); Spacer(Modifier.width(8.dp)); Text(if (soundUri == null) "Choose alarm ringtone" else "Change ringtone")
+                        }
                         Surface(color = Color(0xFFF1F6F2), shape = RoundedCornerShape(22.dp)) {
                             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -368,9 +397,9 @@ private fun ScheduleEditorDialog(title: String, initialDate: LocalDate, planner:
                     OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), shape = CircleShape) { Text("Cancel") }
                     Button(
                         onClick = {
-                            val id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                            val id = initial?.id ?: (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
                             onSave(ScheduleItem(id, name.trim(), detail.trim(), date.toString(), time.toString(),
-                                if (weekly) days else emptySet(), if (planner) lead else 0))
+                                if (weekly) days else emptySet(), if (planner) lead else 0, initial?.completed ?: false, soundUri))
                         },
                         enabled = name.isNotBlank() && (!weekly || days.isNotEmpty()),
                         modifier = Modifier.weight(1f),
