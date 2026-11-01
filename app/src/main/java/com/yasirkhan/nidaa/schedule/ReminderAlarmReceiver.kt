@@ -30,7 +30,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.getNotificationChannel(channelId) == null) {
             val channel = NotificationChannel(channelId, "Nidaa alarms", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Scheduled reminders and planner alerts"
+                this.description = "Scheduled reminders and planner alerts"
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 enableVibration(true)
                 if (soundString != "silent") {
