@@ -67,7 +67,7 @@ private fun saveItems(context: Context, key: String, items: List<ScheduleItem>) 
     val array = JSONArray()
     items.forEach { item ->
         val days = JSONArray()
-        item.repeatDays.sorted().forEach(days::put)
+        item.repeatDays.sorted().forEach { day -> days.put(day) }
         array.put(JSONObject().put("id", item.id).put("title", item.title).put("detail", item.detail)
             .put("date", item.date).put("time", item.time).put("days", days)
             .put("lead", item.leadMinutes).put("completed", item.completed))
@@ -80,12 +80,14 @@ private fun alarmId(item: ScheduleItem, suffix: Int = 0) = (item.id * 31 + suffi
 private fun scheduleItem(context: Context, item: ScheduleItem, planner: Boolean) {
     val date = LocalDate.parse(item.date)
     val time = LocalTime.parse(item.time)
-    val base = date.atTime(time)
-    val trigger = if (planner) base.minusMinutes(item.leadMinutes.toLong()) else base
-    val first = if (trigger.isAfter(LocalDateTime.now())) trigger else if (item.repeatDays.isNotEmpty()) {
-        (1..7).map { LocalDate.now().plusDays(it.toLong()).atTime(time) }
-            .first { item.repeatDays.contains(it.dayOfWeek.value) }
-    } else null
+    val now = LocalDateTime.now()
+    val first = if (item.repeatDays.isNotEmpty()) {
+        (0..7).map { date.plusDays(it.toLong()).atTime(time) }
+            .firstOrNull { it.isAfter(now) && item.repeatDays.contains(it.dayOfWeek.value) }
+    } else {
+        val base = date.atTime(time).minusMinutes(if (planner) item.leadMinutes.toLong() else 0L)
+        base.takeIf { it.isAfter(now) }
+    }
     if (first != null) {
         val millis = first.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         AlarmScheduler.schedule(context, alarmId(item, if (planner) 1 else 0), item.title,
