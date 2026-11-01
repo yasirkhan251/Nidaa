@@ -10,10 +10,9 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import com.yasirkhan.nidaa.MainActivity
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.ZoneId
 
 class ReminderAlarmReceiver : BroadcastReceiver() {
@@ -25,12 +24,24 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         val hour = intent.getIntExtra("triggerHour", 9)
         val minute = intent.getIntExtra("triggerMinute", 0)
         val soundString = intent.getStringExtra("soundUri")
-        val channelId = "nidaa_schedule_" + (soundString ?: "default").hashCode().toUInt().toString(16)
+        val isFajr = intent.getBooleanExtra("isFajr", false) || title.contains("Fajr", ignoreCase = true)
+        val channelId = "nidaa_schedule_" + (soundString ?: "default").hashCode().toUInt().toString(16) + (if (isFajr) "_fajr" else "")
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.getNotificationChannel(channelId) == null) {
-            val channel = NotificationChannel(channelId, "Nidaa alarms", NotificationManager.IMPORTANCE_HIGH).apply {
-                this.description = "Scheduled reminders and planner alerts"
+        // Wake screen with a temporary WakeLock
+        try {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            @Suppress("DEPRECATION")
+            val wakeLock = powerManager.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+                "nidaa:alarm_wakelock",
+            )
+            wakeLock.acquire(10_000)
+        } catch (_: Exception) {}
+
+        if (manager.getNotificationChannel(channelId) == null) {
+            val channel = NotificationChannel(channelId, if (isFajr) "Nidaa Fajr Alarms" else "Nidaa Alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+                this.description = "Scheduled prayer alarms and reminder alerts"
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 enableVibration(true)
                 if (soundString != "silent") {
@@ -41,7 +52,19 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             manager.createNotificationChannel(channel)
         }
 
-        val open = PendingIntent.getActivity(context, id, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        // Full-screen intent for AlarmActivity to wake and show screen
+        val alarmIntent = Intent(context, AlarmActivity::class.java).apply {
+            putExtras(intent)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val fullScreenPending = PendingIntent.getActivity(
+            context, id, alarmIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            context.startActivity(alarmIntent)
+        } catch (_: Exception) {}
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
@@ -51,13 +74,14 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-            .setContentIntent(open)
+            .setFullScreenIntent(fullScreenPending, true)
+            .setContentIntent(fullScreenPending)
             .build()
         manager.notify(id, notification)
 
         if (days.isNotEmpty()) {
-            val now = LocalDateTime.now()
-            val next = (1..7).map { LocalDate.now().plusDays(it.toLong()) }
+            val today = LocalDate.now()
+            val next = (1..7).asSequence().map { today.plusDays(it.toLong()) }
                 .first { days.contains(it.dayOfWeek.value) }
                 .atTime(hour, minute)
             val nextIntent = Intent(context, ReminderAlarmReceiver::class.java).apply {
@@ -68,11 +92,12 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 putExtra("soundUri", soundString)
                 putExtra("triggerHour", hour)
                 putExtra("triggerMinute", minute)
+                putExtra("isFajr", isFajr)
             }
             val pending = PendingIntent.getBroadcast(context, id, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val millis = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarm.canScheduleExactAlarms()) {
+            if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) && alarm.canScheduleExactAlarms()) {
                 alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
             } else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
         }

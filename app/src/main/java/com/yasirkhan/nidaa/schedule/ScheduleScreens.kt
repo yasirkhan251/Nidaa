@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -34,9 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.IntentCompat
+import androidx.core.content.edit
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -86,7 +89,7 @@ private fun saveItems(context: Context, key: String, items: List<ScheduleItem>) 
             .put("date", item.date).put("time", item.time).put("days", days)
             .put("lead", item.leadMinutes).put("completed", item.completed).put("soundUri", item.soundUri ?: ""))
     }
-    context.getSharedPreferences("nidaa_schedule", Context.MODE_PRIVATE).edit().putString(key, array.toString()).apply()
+    context.getSharedPreferences("nidaa_schedule", Context.MODE_PRIVATE).edit { putString(key, array.toString()) }
 }
 
 private fun alarmId(item: ScheduleItem, suffix: Int = 0) = (item.id * 31 + suffix) and 0x7fffffff
@@ -289,7 +292,9 @@ private fun ScheduleEditorDialog(title: String, initialDate: LocalDate, planner:
     var soundUri by remember { mutableStateOf(initial?.soundUri) }
     val ringtonePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
-            soundUri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)?.toString()
+            soundUri = result.data?.let { data ->
+                IntentCompat.getParcelableExtra(data, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+            }?.toString()
         }
     }
 
