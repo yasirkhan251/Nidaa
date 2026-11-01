@@ -23,7 +23,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(NotificationChannel("nidaa_schedule", "Reminders and planner", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Scheduled reminders and planner alerts"
+                this.description = "Scheduled reminders and planner alerts"
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             })
         }
