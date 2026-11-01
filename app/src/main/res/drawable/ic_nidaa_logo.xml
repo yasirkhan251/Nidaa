@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Deep Emerald & Forest Background -->
+    <path
+        android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:angle="315"
+                android:startColor="#064E3B"
+                android:endColor="#021C16"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- Subtle Celestial Glow Center -->
+    <path
+        android:pathData="M54,54m-44,0a44,44 0,1 1,88 0a44,44 0,1 1,-88 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="44"
+                android:startColor="#2A10B981"
+                android:endColor="#00000000"
+                android:type="radial" />
+        </aapt:attr>
+    </path>
+
+    <!-- Ambient Glow behind the logo -->
+    <path
+        android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="28"
+                android:startColor="#3334D399"
+                android:endColor="#00000000"
+                android:type="radial" />
+        </aapt:attr>
+    </path>
+
+    <!-- Graceful Crescent Moon (Hilal) -->
+    <path
+        android:pathData="M51.5,33 C41.2,33 33,41.4 33,52 C33,63.6 42.4,73 54,73 C61.8,73 68.6,68.7 72.2,62.2 C69.4,63.8 66.1,64.8 62.6,64.8 C52.2,64.8 43.8,56.4 43.8,46 C43.8,40.8 45.9,36.2 49.3,32.8 C50,32.9 50.7,33 51.5,33 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:angle="45"
+                android:startColor="#10B981"
+                android:endColor="#6EE7B7"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- Minaret Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M53,48 L57,48 L57.5,68 L52.5,68 Z" />
+
+    <!-- Minaret Balcony -->
+    <path
+        android:fillColor="#E6FFFA"
+        android:pathData="M51.5,47 L58.5,47 C58.8,47 59,47.4 59,47.8 L59,48.5 L51,48.5 L51,47.8 C51,47.4 51.2,47 51.5,47 Z" />
+
+    <!-- Minaret Spire & Dome -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M55,39 C53.5,42.5 53,44.5 53,47 L57,47 C57,44.5 56.5,42.5 55,39 Z" />
+
+    <!-- Mosque Dome base on right -->
+    <path
+        android:fillColor="#D1FAE5"
+        android:pathData="M57,56 C57,52 61,50 63.5,50 C66,50 70,52 70,56 L70,68 L57,68 Z" />
+
+    <!-- Dome Finial Pin -->
+    <path
+        android:strokeColor="#FBBF24"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:pathData="M63.5,47 L63.5,50" />
+
+    <!-- Sound / Adhan Waves from Minaret Top -->
+    <path
+        android:strokeColor="#A7F3D0"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M59,38 C61.2,39.8 62.5,42.5 62.5,45.5" />
+
+    <path
+        android:strokeColor="#6EE7B7"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M63,35 C66.5,38.2 68.5,42.5 68.5,47" />
+
+    <!-- Morning / Beacon Star (Golden Nur) -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M55,33.5 L55.8,36 L58.5,36.8 L55.8,37.6 L55,40.1 L54.2,37.6 L51.5,36.8 L54.2,36 Z" />
+</vector>
