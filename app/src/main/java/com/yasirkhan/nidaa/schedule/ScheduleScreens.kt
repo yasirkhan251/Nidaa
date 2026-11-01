@@ -6,6 +6,8 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +16,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -258,51 +262,121 @@ private fun ScheduleEditorDialog(title: String, initialDate: LocalDate, planner:
     var weekly by remember { mutableStateOf(false) }
     var days by remember { mutableStateOf(setOf<Int>()) }
     var lead by remember { mutableIntStateOf(15) }
-    AlertDialog(
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Title") }, singleLine = true)
-                OutlinedTextField(detail, { detail = it }, label = { Text(if (planner) "Task details" else "Description") })
-                OutlinedButton(onClick = {
-                    val c = Calendar.getInstance()
-                    DatePickerDialog(context, { _, y, m, d -> date = LocalDate.of(y, m + 1, d) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
-                }, modifier = Modifier.fillMaxWidth()) { Text("Date: ${date.format(displayDate)}") }
-                OutlinedButton(onClick = {
-                    TimePickerDialog(context, { _, h, m -> time = LocalTime.of(h, m) }, time.hour, time.minute, false).show()
-                }, modifier = Modifier.fillMaxWidth()) { Text("Ring at: ${time.format(displayTime)}") }
-                if (planner) {
-                    Text("Remind before task", fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(0, 5, 15, 30, 60).forEach { value ->
-                            FilterChip(selected = lead == value, onClick = { lead = value }, label = { Text(if (value == 0) "At time" else "${value}m") })
-                        }
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 680.dp).imePadding(),
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = ScheduleForest)
+                Text(if (planner) "Plan it. Set an alert. Get it done." else "Choose when Nidaa should remind you.", color = ScheduleMuted, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(14.dp))
+                Column(
+                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = name, onValueChange = { name = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Title") }, singleLine = true,
+                        shape = RoundedCornerShape(24.dp)
+                    )
+                    OutlinedTextField(
+                        value = detail, onValueChange = { detail = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (planner) "Task details (optional)" else "Description (optional)") },
+                        minLines = 2, maxLines = 3,
+                        shape = RoundedCornerShape(24.dp)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                DatePickerDialog(context, { _, y, m, d -> date = LocalDate.of(y, m + 1, d) },
+                                    date.year, date.monthValue - 1, date.dayOfMonth).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = CircleShape
+                        ) { Icon(Icons.Default.CalendarMonth, null); Spacer(Modifier.width(6.dp)); Text(date.format(DateTimeFormatter.ofPattern("d MMM"))) }
+                        OutlinedButton(
+                            onClick = {
+                                TimePickerDialog(context, { _, h, m -> time = LocalTime.of(h, m) },
+                                    time.hour, time.minute, false).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = CircleShape
+                        ) { Icon(Icons.Default.AccessTime, null); Spacer(Modifier.width(6.dp)); Text(time.format(displayTime)) }
                     }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = weekly, onCheckedChange = { weekly = it; if (!it) days = emptySet() })
-                        Text("Repeat every week")
-                    }
-                    if (weekly) {
-                        Text("Choose days", fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            ScheduleDays.forEachIndexed { index, day ->
-                                FilterChip(selected = index + 1 in days, onClick = {
-                                    days = if (index + 1 in days) days - (index + 1) else days + (index + 1)
-                                }, label = { Text(day) })
+                    if (planner) {
+                        Text("Remind me", fontWeight = FontWeight.SemiBold, color = ScheduleForest)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(0, 5, 15, 30, 60).forEach { value ->
+                                FilterChip(
+                                    selected = lead == value,
+                                    onClick = { lead = value },
+                                    label = { Text(if (value == 0) "At time" else "${value}m") },
+                                    shape = CircleShape
+                                )
                             }
+                        }
+                    } else {
+                        Surface(color = Color(0xFFF1F6F2), shape = RoundedCornerShape(22.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Repeat every week", fontWeight = FontWeight.SemiBold, color = ScheduleForest)
+                                    Text("Choose one or more days", color = ScheduleMuted, style = MaterialTheme.typography.labelSmall)
+                                }
+                                Switch(checked = weekly, onCheckedChange = { weekly = it; if (!it) days = emptySet() })
+                            }
+                        }
+                        if (weekly) {
+                            Text("Repeat on", fontWeight = FontWeight.SemiBold, color = ScheduleForest)
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                ScheduleDays.take(4).forEachIndexed { index, day ->
+                                    FilterChip(
+                                        selected = index + 1 in days,
+                                        onClick = { days = if (index + 1 in days) days - (index + 1) else days + (index + 1) },
+                                        label = { Text(day) }, shape = CircleShape
+                                    )
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                ScheduleDays.drop(4).forEachIndexed { index, day ->
+                                    val dayNumber = index + 5
+                                    FilterChip(
+                                        selected = dayNumber in days,
+                                        onClick = { days = if (dayNumber in days) days - dayNumber else days + dayNumber },
+                                        label = { Text(day) }, shape = CircleShape
+                                    )
+                                }
+                            }
+                            if (days.isNotEmpty()) Text(
+                                "Repeats: " + ScheduleDays.filterIndexed { index, _ -> index + 1 in days }.joinToString(", "),
+                                color = ScheduleGreen, style = MaterialTheme.typography.labelMedium
+                            )
                         }
                     }
                 }
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), shape = CircleShape) { Text("Cancel") }
+                    Button(
+                        onClick = {
+                            val id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                            onSave(ScheduleItem(id, name.trim(), detail.trim(), date.toString(), time.toString(),
+                                if (weekly) days else emptySet(), if (planner) lead else 0))
+                        },
+                        enabled = name.isNotBlank() && (!weekly || days.isNotEmpty()),
+                        modifier = Modifier.weight(1f),
+                        shape = CircleShape
+                    ) { Text("Save") }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(enabled = name.isNotBlank() && (!weekly || days.isNotEmpty()), onClick = {
-                val id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
-                onSave(ScheduleItem(id, name.trim(), detail.trim(), date.toString(), time.toString(), if (weekly) days else emptySet(), if (planner) lead else 0))
-            }) { Text("Save & schedule") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+        }
+    }
 }
