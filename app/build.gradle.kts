@@ -6,9 +6,18 @@ plugins {
 android {
     namespace = "com.yasirkhan.nidaa"
     compileSdk = 36
-    defaultConfig { applicationId = "com.yasirkhan.nidaa"; minSdk = 30; targetSdk = 35; versionCode = 1; versionName = "1.0.0" }
+    defaultConfig {
+        applicationId = "com.yasirkhan.nidaa"
+        minSdk = 30
+        targetSdk = 35
+        versionCode = 2
+        versionName = "1.1.0"
+    }
     buildFeatures { compose = true }
-    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
@@ -20,5 +29,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
