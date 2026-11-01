@@ -4,6 +4,8 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.media.RingtoneManager
+import android.os.Build
+import android.provider.Settings
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -114,11 +116,21 @@ fun RemindersScreen() {
     var items by remember { mutableStateOf(loadItems(context, "reminders")) }
     var showAdd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ScheduleItem?>(null) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     Column(Modifier.fillMaxSize()) {
         ScheduleHeader("Reminders", "One-time alarms and weekly repeats")
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${items.size} reminders", Modifier.weight(1f), color = ScheduleMuted)
             Button(onClick = { showAdd = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(6.dp)); Text("New reminder") }
+        }
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            OutlinedButton(onClick = { notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Text("Allow notifications") }
+        }
+        if (Build.VERSION.SDK_INT >= 31) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { Text("Allow precise alarms in Settings") }
+            }
         }
         if (items.isEmpty()) ScheduleEmpty("No reminders yet. Create one and choose when it should ring.")
         else LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
